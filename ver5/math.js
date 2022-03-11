@@ -151,8 +151,8 @@ function v3_copy(res, a) {
     res[2] = a[2];
 }
 
-function v3_equals(a, b) {
-    return (Math.abs(a[0] - b[0]) < _v3_epsilon) && (Math.abs(a[1] - b[1]) < _v3_epsilon) && (Math.abs(a[2] - b[2]) < _v3_epsilon);
+function v3_equals(a, b, epsilon = _v3_epsilon) {
+    return (Math.abs(a[0] - b[0]) < epsilon) && (Math.abs(a[1] - b[1]) < epsilon) && (Math.abs(a[2] - b[2]) < epsilon);
 }
 
 // Clamp each components to min and max
@@ -283,6 +283,11 @@ function v3_addscaled_res(res, a, b, f) {
     res[2] = a[2] + (b[2] * f);
 }
 
+function v3_addaddscaled_new(a, b, c, f) {
+    return [ a[0] + b[0] + (c[0] * f),
+             a[1] + b[1] + (c[1] * f),
+             a[2] + b[2] + (c[2] * f) ];
+}
 
 // Scale vector
 // = a * f
@@ -502,6 +507,27 @@ function v3_lengthsquared(a) {
     return (a[0] * a[0] + a[1] * a[1] + a[2] * a[2]);
 }
 
+function v3_lengthXY(a) {
+    return Math.sqrt(a[0] * a[0] + a[1] * a[1]);
+}
+function v3_lengthXYsquared(a) {
+    return (a[0] * a[0] + a[1] * a[1]);
+}
+
+function v3_lengthXZ(a) {
+    return Math.sqrt(a[0] * a[0] + a[2] * a[2]);
+}
+function v3_lengthXZsquared(a) {
+    return (a[0] * a[0] + a[2] * a[2]);
+}
+
+function v3_lengthYZ(a) {
+    return Math.sqrt(a[1] * a[1] + a[2] * a[2]);
+}
+function v3_lengthYZsquared(a) {
+    return (a[1] * a[1] + a[2] * a[2]);
+}
+
 // Vector distance
 function v3_distance(a, b) {
     var dx = a[0] - b[0];
@@ -514,6 +540,39 @@ function v3_distancesquared(a, b) {
     var dy = a[1] - b[1];
     var dz = a[2] - b[2];
     return (dx * dx + dy * dy + dz * dz);
+}
+
+function v3_distanceXY(a, b) {
+    var dx = a[0] - b[0];
+    var dy = a[1] - b[1];
+    return Math.sqrt(dx * dx + dy * dy);
+}
+function v3_distanceXYsquared(a, b) {
+    var dx = a[0] - b[0];
+    var dy = a[1] - b[1];
+    return (dx * dx + dy * dy);
+}
+
+function v3_distanceXZ(a, b) {
+    var dx = a[0] - b[0];
+    var dz = a[2] - b[2];
+    return Math.sqrt(dx * dx + dz * dz);
+}
+function v3_distanceXZsquared(a, b) {
+    var dx = a[0] - b[0];
+    var dz = a[2] - b[2];
+    return (dx * dx + dz * dz);
+}
+
+function v3_distanceYZ(a, b) {
+    var dy = a[1] - b[1];
+    var dz = a[2] - b[2];
+    return Math.sqrt(dy * dy + dz * dz);
+}
+function v3_distanceYZsquared(a, b) {
+    var dy = a[1] - b[1];
+    var dz = a[2] - b[2];
+    return (dy * dy + dz * dz);
 }
 
 
@@ -633,6 +692,50 @@ function v3_avg2_res(res, a, b) {
     res[2] = (a[2] + b[2]) / 2.0;
 }
 
+
+// Normalized Average of 2 v3
+function v3_avg2normalized_new(a, b) {
+    var x = (a[0] + b[0]) / 2.0;
+    var y = (a[1] + b[1]) / 2.0;
+    var z = (a[2] + b[2]) / 2.0;
+    var l = x * x + y * y + z * z;
+    if (l > 0.0) {
+        l = Math.sqrt(l);
+        return [ 
+            x / l,
+            y / l,
+            z / l 
+        ];
+    } else return [0, 0, 0];
+}
+
+function v3_avg2normalized_mod(a, b) {
+    a[0] = (a[0] + b[0]) / 2.0;
+    a[1] = (a[1] + b[1]) / 2.0;
+    a[2] = (a[2] + b[2]) / 2.0;
+    var l = a[0] * a[0] + a[1] * a[1] + a[2] * a[2];
+    if (l > 0.0) {
+        l = Math.sqrt(l);
+        a[0] /= l;
+        a[1] /= l;
+        a[2] /= l;
+    } else a = [0, 0, 0];
+}
+
+function v3_avg2normalized_res(res, a, b) {
+    res[0] = (a[0] + b[0]) / 2.0;
+    res[1] = (a[1] + b[1]) / 2.0;
+    res[2] = (a[2] + b[2]) / 2.0;
+    var l = res[0] * res[0] + res[1] * res[1] + res[2] * res[2];
+    if (l > 0.0) {
+        l = Math.sqrt(l);
+        res[0] /= l;
+        res[1] /= l;
+        res[2] /= l;
+    } else res = [0, 0, 0];
+}
+
+
 // Average of 3 v3
 function v3_avg3_mod(a, b, c) {
     a[0] = (a[0] + b[0] + c[0]) / 3.0;
@@ -652,6 +755,50 @@ function v3_avg3_res(res, a, b, c) {
     res[2] = (a[2] + b[2] + c[2]) / 3.0;
 }
 
+// Normalized Average of 3 v3
+function v3_avg3normalized_new(a, b, c) {
+    var x = (a[0] + b[0] + c[0]) / 3.0;
+    var y = (a[1] + b[1] + c[1]) / 3.0;
+    var z = (a[2] + b[2] + c[2]) / 3.0;
+    var l = x * x + y * y + z * z;
+    if (l > 0.0) {
+        l = Math.sqrt(l);
+        return [ 
+            x / l,
+            y / l,
+            z / l 
+        ];
+    } else return [0, 0, 0];
+}
+
+function v3_avg3normalized_mod(a, b, c) {
+    a[0] = (a[0] + b[0] + c[0]) / 3.0;
+    a[1] = (a[1] + b[1] + c[1]) / 3.0;
+    a[2] = (a[2] + b[2] + c[2]) / 3.0;
+    var l = a[0] * a[0] + a[1] * a[1] + a[2] * a[2];
+    if (l > 0.0) {
+        l = Math.sqrt(l);
+        a[0] /= l;
+        a[1] /= l;
+        a[2] /= l;
+    } else a = [0, 0, 0];
+}
+
+function v3_avg3normalized_res(res, a, b, c) {
+    res[0] = (a[0] + b[0] + c[0]) / 3.0;
+    res[1] = (a[1] + b[1] + c[1]) / 3.0;
+    res[2] = (a[2] + b[2] + c[2]) / 3.0;
+    var l = res[0] * res[0] + res[1] * res[1] + res[2] * res[2];
+    if (l > 0.0) {
+        l = Math.sqrt(l);
+        res[0] /= l;
+        res[1] /= l;
+        res[2] /= l;
+    } else res = [0, 0, 0];
+}
+
+
+// random noise
 function v3_addv3noise_new(a, range) {
     return [
         a[0] + randomFloatPlusMinus(range[0]),
@@ -816,6 +963,28 @@ function v3a_new(n) {
 }
 
 
+// Scale vector array
+// = a * f
+function v3a_scale_new(a, f) {
+    var res = [];
+    for (var i = 0; i < a.length; ++i) res.push( [ a[i][0] * f, 
+                                                   a[i][1] * f, 
+                                                   a[i][2] * f ] );
+    return res; 
+}
+function v3a_scale_mod(a, f) {
+    for (var i = 0; i < a.length; ++i) a[i] = [ a[i][0] * f,
+                                                a[i][1] * f,
+                                                a[i][2] * f ];
+}
+function v3a_scale_res(res, a, f) {
+    res = [];
+    for (var i = 0; i < a.length; ++i) res.push( [ a[i][0] * f, 
+                                                   a[i][1] * f, 
+                                                   a[i][2] * f ] );
+}
+
+
 // v3 and m4
 
 
@@ -859,6 +1028,65 @@ function v3_applym4_mod(a, m) {
     a[0] = (m[0] * a0 + m[4] * a1 + m[8]  * a2 + m[12]) / w;
     a[1] = (m[1] * a0 + m[5] * a1 + m[9]  * a2 + m[13]) / w;
     a[2] = (m[2] * a0 + m[6] * a1 + m[10] * a2 + m[14]) / w;
+}
+
+
+
+// v3 Array and m4
+
+// Apply m4 matrix to all vectors
+function v3a_applym4_new(a, m) {
+    var res = [];
+    for (var i = 0; i < a.length; ++i) {
+        var a0 = a[i][0];
+        var a1 = a[i][1];
+        var a2 = a[i][2];
+
+        var w = m[3] * a0 + m[7] * a1 + m[11] * a2 + m[15];
+        w = w || 1.0;
+
+        res.push( [ (m[0] * a0 + m[4] * a1 + m[8]  * a2 + m[12]) / w,
+                    (m[1] * a0 + m[5] * a1 + m[9]  * a2 + m[13]) / w,
+                    (m[2] * a0 + m[6] * a1 + m[10] * a2 + m[14]) / w ]);
+    }
+    return res;
+}
+function v3a_applym4_res(res, a, m) {
+    res = [];
+    for (var i = 0; i < a.length; ++i) {
+        var a0 = a[i][0];
+        var a1 = a[i][1];
+        var a2 = a[i][2];
+
+        var w = m[3] * a0 + m[7] * a1 + m[11] * a2 + m[15];
+        w = w || 1.0;
+
+        res.push( [ (m[0] * a0 + m[4] * a1 + m[8]  * a2 + m[12]) / w,
+                    (m[1] * a0 + m[5] * a1 + m[9]  * a2 + m[13]) / w,
+                    (m[2] * a0 + m[6] * a1 + m[10] * a2 + m[14]) / w ]);
+    }
+}
+function v3a_applym4_mod(a, m) {
+    for (var i = 0; i < a.length; ++i) {
+        var a0 = a[i][0];
+        var a1 = a[i][1];
+        var a2 = a[i][2];
+
+        var w = m[3] * a0 + m[7] * a1 + m[11] * a2 + m[15];
+        w = w || 1.0;
+
+        a[i][0] = (m[0] * a0 + m[4] * a1 + m[8]  * a2 + m[12]) / w;
+        a[i][1] = (m[1] * a0 + m[5] * a1 + m[9]  * a2 + m[13]) / w;
+        a[i][2] = (m[2] * a0 + m[6] * a1 + m[10] * a2 + m[14]) / w;
+    }
+}
+
+
+// v3 format
+
+
+function v3_string(v) {
+    return ((v[0] >= 0) ? "[ " : "[") + v[0].toFixed(3) + ((v[1] >= 0) ? ", " : ",") + v[1].toFixed(3) + ((v[2] >= 0) ? ", " : ",") + v[2].toFixed(3) + " ]";
 }
 
 

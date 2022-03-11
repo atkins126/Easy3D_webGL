@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Scale Sound Tests</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+        body {
+            margin: 5px;
+            font-size: large;
+        }
+     
+        input {
+            font-size: initial;
+        }
+        
+
+        .E3D_fullscreenContainer {
+            position:fixed;
+            top:0px;
+            bottom:0px;
+            right:0px;
+            left:0px;
+        }
+
+        .E3D_flexVertical {
+            display: flex;
+            flex-direction: column;
+        }
+        .E3D_flexHorizontal {
+            display: flex;
+            flex-direction: row;
+        }
+        .E3D_flexContent {
+            overflow: hidden;
+            flex: 1 1 auto;
+        }
+        .E3D_flexVerticalContentFixed {
+            width: 100%;
+            height: fit-content;
+        }
+        .E3D_flexHorizontalContentFixed {
+            width: fit-content;
+            height: 100%;
+        }
+
+        .E3D_fakeButton {
+            cursor: pointer;
+            background-color: #d0d0d0;   
+            padding-right: 0.2em;
+            padding-left: 0.2em;   
+            user-select: none;   
+            box-shadow: 0.1em 0.1em black;      
+            border-radius: 0.2em; 
+            margin: 0.1em 0.2em 0.2em 0.2em;
+            display: inline-block;
+        }
+        .E3D_fakeButton:hover {
+            background-color: #a0a0a0;
+        }
+
+        #footer {
+            position: fixed;
+            bottom:0px;
+            right:0px;
+        }
+   
+        #freq {
+            height : 30px;
+            display: block;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        .noteDiv {
+            background-color: white;
+            width : 250px;
+            height : 30px;
+
+            cursor: pointer;
+            border: 2px solid black;
+            border-collapse: collapse;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        .noteDiv:hover {
+            background-color: #a0a0a0;
+        }
+
+        .scale {
+            margin: 5px;
+            display: inline-block;
+            border: 1px solid black;
+            vertical-align: top;
+        }
+
+        .halfDiv {
+            background-color: white;
+            width : 123px;
+            height : 30px;
+            display: table-cell;
+            cursor: pointer;
+            border: 2px solid black;
+            border-collapse: collapse;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        .halfDiv:hover {
+            background-color: #a0a0a0;
+        }
+
+        .playingNote {
+            background-color: #B0FFB0 !important;
+        }
+        .playingNote:hover {
+            background-color: #80FF80 !important;
+        }
+        .selectedNote {
+            background-color: #c0c0ff;
+        }
+        .selectedNote:hover {
+            background-color: #8080FF;
+        }
+        .refNote {
+            border: 2px solid blue;
+        }
+        .calcNote {
+            border: 2px solid red;
+        }
+
+
+    </style>
+    <script type="text/javascript">
+        document.addEventListener("DOMContentLoaded", function() { 
+
+            function getElem(id) {
+                var elem = document.getElementById(id);
+                if (elem) return elem;
+                return false;
+            }
+
+            function onClick(elemOrID, callback) {
+                if (typeof(elemOrID) == "string") elemOrID = getElem(elemOrID);
+                if (elemOrID) elemOrID.addEventListener("click", callback);
+            }
+
+            function onEvent(elemOrID, event, callback) {
+                if (typeof(elemOrID) == "string") elemOrID = getElem(elemOrID);
+                if (elemOrID) elemOrID.addEventListener(event, callback);
+            }
+
+            onClick("startButton", enable);
+            onClick("muteButton", mute);
+            var freq = getElem("freq");
+            var freq_log = getElem("freq_log");
+            var freq_pyth = getElem("freq_pyth");
+            var freq_pyth2 = getElem("freq_pyth2");
+            var freq_Ptolemy = getElem("freq_Ptolemy");
+            var freq_turk = getElem("freq_turk");
+            var freq_pent = getElem("freq_pent");
+            var select_pent = getElem("pentSelect");
+            onEvent(select_pent, "input", changePent);
+            var pentDiv = getElem("pentDiv");
+            var customInput = getElem("customInput");
+            onEvent(customInput, "input", changeCustom);
+            var freq_custom = getElem("freq_custom");
+            var customDiv = getElem("customDiv");
+
+            var notes = document.querySelectorAll(".noteDiv, .halfDiv");
+            notes.forEach((e) => onEvent(e, "mousedown", playNote));
+            notes.forEach((e) => onEvent(e, "mouseup", stopNote));
+            notes.forEach((e) => onEvent(e, "mouseleave", stopNote));
+
+            var audioCtx;
+            var oscillatorNodes = []; //1, oscillatorNodes2, oscillatorNodes3;
+            var gainNodes = [];// , gainNodes2, gainNodes3;
+
+            class playback {
+                constructor (offset, text, freq, type) {
+                    this.offset = offset; // note offset in dom
+                    this.text = text; // note text content
+                    this.freq = freq; // calculated note frequency
+                    this.type = type; // note tuning scale type
+                }
+            }
+            var currentScale = "";
+            var currentNote = 0;
+            var alt_num = getElem("alt_num");
+            if (window.localStorage) {
+                var v = window.localStorage.getItem("m1.alt");
+                if (v != undefined) {
+                    alt_num.value = v;
+                }
+            }
+            var alt_interval = setInterval(alternateNote, alt_num.value);
+            alt_num.addEventListener("input", function (event) {
+                clearInterval(alt_interval);
+                alt_interval = setInterval(alternateNote, this.value);
+                if (window.localStorage) window.localStorage.setItem("m1.alt", this.value);
+            });
+            var playbackList = [];
+
+            // volume slider
+            var volSlider = getElem("volSlider");
+            if (window.localStorage) {
+                var v = window.localStorage.getItem("m1.vol");
+                if (v != undefined) {
+                    volSlider.value = v;
+                }
+            }
+            volSlider.addEventListener("input", newVolume);
+            function newVolume(event) { 
+                for (var i = 0; i < playbackList.length; ++i) gainNodes[i].gain.value = getVol(playbackList[i].freq);
+                if (window.localStorage) window.localStorage.setItem("m1.vol", volSlider.value);
+            }
+            var volEq = document.querySelectorAll('input[name="eq"]');
+            volEq.forEach( (e) => e.addEventListener("input", newVolume));
+
+
+
+
+            function enable() {
+                // create web audio api context
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+                // create Gain and Oscillator nodes
+                for (var i = 0; i < 3; ++i) {
+                    gainNodes.push(audioCtx.createGain());
+                    gainNodes[i].connect(audioCtx.destination);
+                    gainNodes[i].gain.value = 0;
+
+                    oscillatorNodes.push(audioCtx.createOscillator());
+                    oscillatorNodes[i].connect(gainNodes[i]);
+                    oscillatorNodes[i].start();
+                };
+              //  audioCtx.suspend();
+
+            }
+
+            var isMuted = false;
+            function mute() {
+                if (audioCtx) gainNodes.forEach( (n) => n.gain.value = 0 );
+                isMuted = !isMuted;
+            }
+
+            function getVol(freq = 440) {
+                var volType = document.querySelector('input[name="eq"]:checked').value;
+                return (volType == "energy") ? volSlider.value * 440 / freq : volSlider.value;
+            }
+
+            const log_baseFactor = Math.pow(2.0, 1.0/12.0);
+            const log_startOffset = 40;
+            const log_unison = 49;
+
+
+            const pyth_unison = 2;
+            const pyth_ratio = [ 1024/512, 256/243, 128/81, 32/27, 16/9, 4/3, 1/1, 3/2, 9/8, 27/16, 81/64, 243/128, 729/512].sort();
+
+
+            const pyth2_ratio = [    1/1, //c
+                                    256/243, 2187/2048,
+                                    65536/59049, //d
+                                    32/27, 19683/16384,
+                                    81/64, //e
+                                    177147/131072, //f ?
+                                    1024/729, 729/512,
+                                    262144/177147,//g
+                                    128/81, 6561/4096,
+                                    27/16, //a
+                                    16/9, 59049/32768,
+                                    243/128, //b
+                                    2/1 //c
+                                ];
+            const pyth2_unison = 3;
+
+
+            const Ptolemy_unison = 0;
+            const Ptolemy_ratio = [ 1/1, //c
+                                    25/24, 16/15,
+                                    9/8, //d
+                                    75/64, 6/5, 
+                                    5/4, //e
+                                    32/25, //e#
+                                    4/3, //f
+                                    25/18, 36/25,
+                                    3/2, //g
+                                    25/16, 8/5,
+                                    5/3, //a 
+                                    125/72, 9/5,
+                                    15/8, //b
+                                    48/25,
+                                    2/1 //c  
+            ];
+
+            const turk_unison = 0;
+            const turk_ratio = [1/1, //c
+                                256/243,
+                                16/15,
+                                10/9,
+                                9/8,
+                                32/27,
+                                6/5,
+                                5/4,
+                                81/64,
+                                4/3,
+                                27/20,
+                                45/32,
+                                729/512,
+                                3/2, //g
+                                128/81,
+                                8/5,
+                                5/3,
+                                27/16,
+                                16/9,
+                                9/5,
+                                15/8,
+                                243/128,
+                                2/1
+            ];
+
+            var pent_index = 0;
+            const pent_unison = [4, 3, 2, 1, 0];
+            const pent_ratio =  [   [ 24/24, 27/24, 30/24, 36/24, 40/24, 48/24 ], 
+                                    [ 24/24, 27/24, 32/24, 36/24, 42/24, 48/24 ], 
+                                    [ 15/15, 18/15, 20/15, 24/15, 27/15, 30/15 ], 
+                                    [ 24/24, 27/24, 32/24, 36/24, 40/24, 48/24 ], 
+                                    [ 30/30, 36/30, 40/30, 45/30, 54/30, 60/30 ] ];
+            const pent_notes =   [ "CDEGAC", "DEGACD", "EGACDE", "GACDEG", "ACDEGA" ];
+            function changePent() {
+                pent_index = select_pent.value;
+                pentDiv.innerHTML = "";
+
+                for (var i = 0; i < 6; ++i) {
+                    var e = document.createElement("div");
+                    e.className = "noteDiv";
+                    e.innerText = i + "/5 " + pent_notes[pent_index][i];
+                    if (i == pent_unison[pent_index]) e.classList.add("refNote");
+                    e.setAttribute("data-type", "pent");
+                    e.setAttribute("data-offset", i);
+                    onEvent(e, "mousedown", playNote);
+                    onEvent(e, "mouseup", stopNote);
+                    onEvent(e, "mouseleave", stopNote);
+
+                    pentDiv.appendChild(e);
+                }
+            }
+            changePent();
+
+            var custom_n = 12;
+            function changeCustom() {
+                custom_n = customInput.value;
+                customDiv.innerHTML = "";
+
+                for (var i = 0; i <= custom_n; ++i) {
+                    var e = document.createElement("div");
+                    e.className = "noteDiv";
+                    e.innerText = i + "/"  + custom_n;
+                    if (i == 0) e.classList.add("refNote");
+                    e.setAttribute("data-type", "custom");
+                    e.setAttribute("data-offset", i);
+                    onEvent(e, "mousedown", playNote);
+                    onEvent(e, "mouseup", stopNote);
+                    onEvent(e, "mouseleave", stopNote);
+
+                    customDiv.appendChild(e);
+                }
+            }
+            changeCustom();
+
+            function playNote(e) {
+                if (!audioCtx) return;
+                
+                // calc and play note
+                var type = this.getAttribute("data-type");            
+                var offset = this.getAttribute("data-offset");
+
+                var newFreq = -1;
+
+                if (type == "log") {
+                    var baseFreq = Number(freq_log.value);                    
+                    if ((baseFreq == NaN) || (baseFreq <= 0)) baseFreq = 440;
+
+                    var offset = Number(offset);                    
+                    newFreq = baseFreq * Math.pow(log_baseFactor, (offset + log_startOffset - log_unison));
+                } else if (type == "pyth") {
+                    var baseFreq = Number(freq_pyth.value);                    
+                    if ((baseFreq == NaN) || (baseFreq <= 0)) baseFreq = 288;
+                    baseFreq = baseFreq / pyth_ratio[pyth_unison];
+
+                    var offset = Number(offset);                        
+                    newFreq = baseFreq * pyth_ratio[offset];
+
+                } else if (type == "pyth2") {
+                    var baseFreq = Number(freq_pyth2.value);                    
+                    if ((baseFreq == NaN) || (baseFreq <= 0)) baseFreq = 288;
+                    baseFreq = baseFreq / pyth2_ratio[pyth2_unison];
+
+                    var offset = Number(offset);                        
+                    newFreq = baseFreq * pyth2_ratio[offset];
+                } else if (type == "Ptolemy") {
+                    var baseFreq = Number(freq_Ptolemy.value);                    
+                    if ((baseFreq == NaN) || (baseFreq <= 0)) baseFreq = 261.6256;
+                    baseFreq = baseFreq / Ptolemy_ratio[Ptolemy_unison];
+
+                    var offset = Number(offset);                        
+                    newFreq = baseFreq * Ptolemy_ratio[offset];
+                } else if (type == "pent") {
+                    var baseFreq = Number(freq_pent.value);                    
+                    if ((baseFreq == NaN) || (baseFreq <= 0)) baseFreq = 440;
+                    baseFreq = baseFreq / pent_ratio[pent_index][pent_unison[pent_index]];
+
+                    var offset = Number(offset);                        
+                    newFreq = baseFreq * pent_ratio[pent_index][offset];
+                } else if (type == "turk") {
+                    var baseFreq = Number(freq_turk.value);                    
+                    if ((baseFreq == NaN) || (baseFreq <= 0)) baseFreq = 261.6256;
+                    baseFreq = baseFreq / turk_ratio[turk_unison];
+                    
+                    var offset = Number(offset);                        
+                    newFreq = baseFreq * turk_ratio[offset];
+                } else if (type == "custom") {
+                    var baseFreq = Number(freq_custom.value);                    
+                    if ((baseFreq == NaN) || (baseFreq <= 0)) baseFreq = 261.6256;
+
+                    var baseFactor = Math.pow(2.0, 1.0 / custom_n);
+                    var offset = Number(offset);                        
+                    newFreq = baseFreq * Math.pow(baseFactor, offset);
+                }
+
+
+                if (newFreq > 0) {
+
+                    var playType = document.querySelector('input[name="play"]:checked').value;
+
+                    if (playType == "single") {      
+            
+                        removeAllNotesStyle();
+
+                        // update state and UI
+                        currentScale = type;
+                        freq.innerText = this.innerText + " " + newFreq.toFixed(4);
+                        playbackList = [new playback(offset, freq.innerText, newFreq, type)];
+                        addNoteStylePlaying(type, offset);
+
+                        // update sound generator
+                        oscillatorNodes[0].frequency.value = newFreq;
+                        gainNodes[0].gain.value = getVol(newFreq);
+                        gainNodes[1].gain.value = 0;
+                        gainNodes[2].gain.value = 0;
+
+                    } else if (playType == "alternate") {
+                        var ni = noteInList(type, offset);
+                        if (ni > -1) {
+                            // if in list remove from list
+                            var oldPB = playbackList.splice(ni, 1)[0];
+                            removeNoteStyleAll(oldPB.type, oldPB.offset);
+                            if (playbackList.length == 0) gainNodes[0].gain.value = 0;
+                        } else {
+                            while (playbackList.length > 2) {
+                                // else remove last if more than 2
+                                var oldPB = playbackList.splice(0, 1)[0];
+                                removeNoteStyleAll(oldPB.type, oldPB.offset);
+                            }
+                            //      add to list
+                            currentScale = type;
+                            var newText = this.innerText + " " + newFreq.toFixed(4);
+                            playbackList.push(new playback(offset, newText, newFreq, type));
+                            addNoteStyleSelected(type, offset);
+                        }
+                    } else if (playType == "chord") {
+                        if (type != currentScale) {
+                            removeAllNotesStyle();
+                            playbackList = [];
+                        }
+                        var ni = noteInList(type, offset);
+                        if (ni > -1) {
+                            // if in list remove from list
+                            var oldPB = playbackList.splice(ni, 1)[0];
+                            removeNoteStyleAll(oldPB.type, oldPB.offset);
+                        } else {
+                            while (playbackList.length > 2) {
+                                // else remove last if more than 2
+                                var oldPB = playbackList.splice(0, 1)[0];
+                                removeNoteStyleAll(oldPB.type, oldPB.offset);
+                            }
+                            //      add to list
+                            currentScale = type;
+                            var newText = this.innerText + " " + newFreq.toFixed(4);
+                            playbackList.push(new playback(offset, newText, newFreq, type));
+                            addNoteStyleSelected(type, offset);
+                        }
+                        //      setup sounds
+                        freq.innerText = "";
+                        for (var i = 0; i < 3; ++i) {        
+                            if (i < playbackList.length) {
+                                freq.innerText += playbackList[i].text + ", ";
+                                oscillatorNodes[i].frequency.value = playbackList[i].freq;
+                                gainNodes[i].gain.value = getVol(playbackList[i].freq);
+                                addNoteStylePlaying(playbackList[i].type, playbackList[i].offset);
+
+                            } else {
+                                gainNodes[i].gain.value = 0;                                
+                            }// out of list
+                        } // 3 possible notes
+                    } // chord
+
+                } // new Freq
+
+                isMuted = false;
+                e.preventDefault();
+            }
+
+            
+
+            function stopNote() {
+                if (!audioCtx) return;
+                var playType = document.querySelector('input[name="play"]:checked').value;
+                if (playType == "single") {
+                    gainNodes.forEach( (n) => n.gain.value = 0 );
+                    if (playbackList.length > 0) removeNoteStylePlaying(playbackList[0].type, playbackList[0].offset);
+                } 
+            }
+
+            function alternateNote() {
+                if (isMuted) return;
+                var playType = document.querySelector('input[name="play"]:checked').value;
+                if (playType == "alternate") {
+                    currentNote++;
+                    freq.innerText = "";
+                    if (currentNote >= playbackList.length) currentNote = 0;
+                    for (var i = 0; i < playbackList.length; ++i) {
+                        if (i == currentNote) {
+
+                            freq.innerText += "[X]" + playbackList[i].text + ", ";
+
+                            oscillatorNodes[0].frequency.value = playbackList[i].freq;
+                            gainNodes[0].gain.value = getVol(playbackList[i].freq);
+                            gainNodes[1].gain.value = 0;
+                            gainNodes[2].gain.value = 0;
+                            addNoteStylePlaying(playbackList[i].type, playbackList[i].offset);
+
+                        } else {
+                            freq.innerText += "[ ]" + playbackList[i].text + ", ";
+                            removeNoteStylePlaying(playbackList[i].type, playbackList[i].offset);
+                        }
+                    }
+
+                }
+            }
+
+            function getElementFromTypeAndOffset(type, offset){
+                return document.querySelector('div[data-type="'+type+'"][data-offset="'+offset+'"]');
+            }
+
+            function removeAllNotesStyle() {
+                for (var i = 0; i < playbackList.length; ++i) removeNoteStyleAll(playbackList[i].type, playbackList[i].offset);
+            }
+            function removeNoteStyleAll(type, offset) {
+                var elem = getElementFromTypeAndOffset(type, offset);
+                if (elem) {
+                    elem.classList.remove("selectedNote");
+                    elem.classList.remove("playingNote");
+                }
+            }
+
+
+            function removeNoteStyleSelected(type, offset) {
+                var elem = getElementFromTypeAndOffset(type, offset);
+                if (elem) elem.classList.remove("selectedNote");
+            }
+            function removeNoteStylePlaying(type, offset) {
+                var elem = getElementFromTypeAndOffset(type, offset);
+                if (elem) elem.classList.remove("playingNote");
+            }
+
+            function addNoteStyleSelected(type, offset) {
+                var elem = getElementFromTypeAndOffset(type, offset);
+                if (elem) elem.classList.add("selectedNote");
+            }
+            function addNoteStylePlaying(type, offset) {
+                var elem = getElementFromTypeAndOffset(type, offset);
+                if (elem) elem.classList.add("playingNote");
+            }
+
+            function noteInList(type, offset) {
+                for (var i = 0; i < playbackList.length; ++i) if ((playbackList[i].type == type) && (playbackList[i].offset == offset)) return i;
+                return -1;
+            }
+
+
+        } );
+    </script>
+</head>
+
+<body>
+<div id="startButton" class="E3D_fakeButton">Enable</div><br />
+<input id="volSlider" type="range" min="0.0" max="0.5" value="0.25" step="0.05" />Volume<br />
+<input value="amp" name="eq" type="radio"/>Equal Amplitude<br/>
+<input value="energy" name="eq" type="radio" checked="true"/>Equal Energy<hr/>
+
+<input value="single" name="play" type="radio" checked="true"/>Play 1 note<br/>
+<input value="alternate" name="play" type="radio" />Play notes alternatively every <input id="alt_num" type="number" min="10" max="10000" value="250" />ms<br/>
+<input value="chord" name="play" type="radio" />Play notes togheter<br/>
+
+<hr />
+<span id="freq">440</span>
+<div id="muteButton" class="E3D_fakeButton">Mute</div>
+<hr />
+<div id="logScale" class="scale">
+    12-TET (western, tempered)<br>
+    <sup>12</sup>√2<sup>n</sup><br>
+    A=<input id="freq_log" type="number" min="1" max="22000" value="440" />(440)<br />
+
+    <div data-type="log" data-offset="0" class="noteDiv">&nbsp;0/12 C3 do</div>
+    <div data-type="log" data-offset="1" class="noteDiv">&nbsp;1/12 C&#9839;</div>
+    <div data-type="log" data-offset="2" class="noteDiv">&nbsp;2/12 D ré</div>
+    <div data-type="log" data-offset="3" class="noteDiv">&nbsp;3/12 D&#9839;</div>
+    <div data-type="log" data-offset="4" class="noteDiv">&nbsp;4/12 E mi</div>
+    <div data-type="log" data-offset="5" class="noteDiv">&nbsp;5/12 F fa</div>
+    <div data-type="log" data-offset="6" class="noteDiv">&nbsp;6/12 F&#9839;</div>
+    <div data-type="log" data-offset="7" class="noteDiv">&nbsp;7/12 G sol</div>
+    <div data-type="log" data-offset="8" class="noteDiv">&nbsp;8/12 G&#9839;</div>
+    <div data-type="log" data-offset="9" class="noteDiv refNote">&nbsp;9/12 A la</div>
+    <div data-type="log" data-offset="10" class="noteDiv">10/12 A&#9839;</div>
+    <div data-type="log" data-offset="11" class="noteDiv">11/12 B si</div>
+    <div data-type="log" data-offset="12" class="noteDiv">12/12 C4 do</div>
+</div>
+
+<div id="pythScale" class="scale">
+    Pythagorian 12 Tones Perfect 5th<br>
+    3<sup>n</sup>/2<sup>n</sup>, 2<sup>n</sup>/3<sup>n</sup><br>
+    D=<input id="freq_pyth" type="number" min="1" max="22000" value="293" />(288)<br />
+
+    <div data-type="pyth" data-offset="0" class="noteDiv">&nbsp;0/12 C3 do</div>
+    <div data-type="pyth" data-offset="1" class="noteDiv">&nbsp;1/12 C&#9839;</div>
+    <div data-type="pyth" data-offset="2" class="noteDiv refNote">&nbsp;2/12 D ré</div>
+    <div data-type="pyth" data-offset="3" class="noteDiv">&nbsp;3/12 E&#9837;</div>
+    <div data-type="pyth" data-offset="4" class="noteDiv">&nbsp;4/12 E mi</div>
+    <div data-type="pyth" data-offset="5" class="noteDiv">&nbsp;5/12 F fa</div>
+    <div data-type="pyth" data-offset="6" class="noteDiv">&nbsp;6/12 F&#9839;</div>
+    <div data-type="pyth" data-offset="7" class="noteDiv">&nbsp;7/12 G sol</div>
+    <div data-type="pyth" data-offset="8" class="noteDiv">&nbsp;8/12 G&#9839;</div>
+    <div data-type="pyth" data-offset="9" class="noteDiv">&nbsp;9/12 A la</div>
+    <div data-type="pyth" data-offset="10" class="noteDiv">10/12 B&#9837;</div>
+    <div data-type="pyth" data-offset="11" class="noteDiv">11/12 B si</div>
+    <div data-type="pyth" data-offset="12" class="noteDiv calcNote">12/12 C4 do</div>
+
+</div>
+<div id="pyth2Scale" class="scale">
+    Pythagorian Full<br>
+    3<sup>n</sup>/2<sup>n</sup>, 2<sup>n</sup>/3<sup>n</sup><br>
+    D=<input id="freq_pyth2" type="number" min="1" max="22000" value="288" /><br />
+
+    <div data-type="pyth2" data-offset="0" class="noteDiv">&nbsp;0/12 C3 do</div>
+    <div data-type="pyth2" data-offset="1" class="halfDiv">&nbsp;1/12 C&#9839;</div><div data-type="pyth2" data-offset="2" class="halfDiv">&nbsp;1/12 D&#9837;</div>
+    <div data-type="pyth2" data-offset="3" class="noteDiv refNote">&nbsp;2/12 D ré</div>
+    <div data-type="pyth2" data-offset="4" class="halfDiv">&nbsp;3/12 D&#9839;</div><div data-type="pyth2" data-offset="5" class="halfDiv">&nbsp;3/12 E&#9837;</div>
+    <div data-type="pyth2" data-offset="6" class="noteDiv">&nbsp;4/12 E mi</div>
+    <div data-type="pyth2" data-offset="7" class="noteDiv">&nbsp;5/12 F fa</div>
+    <div data-type="pyth2" data-offset="8" class="halfDiv">&nbsp;6/12 F&#9839;</div><div data-type="pyth2" data-offset="9" class="halfDiv">&nbsp;6/12 G&#9837;</div>
+    <div data-type="pyth2" data-offset="10" class="noteDiv">&nbsp;7/12 G sol</div>
+    <div data-type="pyth2" data-offset="11" class="halfDiv">&nbsp;8/12 G&#9839;</div><div data-type="pyth2" data-offset="12" class="halfDiv">&nbsp;8/12 A&#9837;</div>
+    <div data-type="pyth2" data-offset="13" class="noteDiv">&nbsp;9/12 A la</div>
+    <div data-type="pyth2" data-offset="14" class="halfDiv">10/12 A&#9839;</div><div data-type="pyth2" data-offset="15" class="halfDiv">10/12 B&#9837;</div>
+    <div data-type="pyth2" data-offset="16" class="noteDiv">11/12 B si</div>
+    <div data-type="pyth2" data-offset="17" class="noteDiv calcNote">12/12 C4 do</div>
+</div>
+
+<div id="turkScale" class="scale">
+    Turkish 22 Shruti<br>
+    <br>
+    C=<input id="freq_turk" type="number" min="1" max="22000" value="261.6256" />(Chandovatī)<br />
+
+    <div data-type="turk" data-offset="0" class="noteDiv refNote">&nbsp;0/22 Chandovatī C</div>
+    <div data-type="turk" data-offset="1" class="noteDiv">&nbsp;1/22 Dayāvatī D&#9837;</div>
+    <div data-type="turk" data-offset="2" class="noteDiv">&nbsp;2/22 Ranjanī D&#9837;</div>
+    <div data-type="turk" data-offset="3" class="noteDiv">&nbsp;3/22 Ratikā D</div>
+    <div data-type="turk" data-offset="4" class="noteDiv">&nbsp;4/22 Raudrī D</div>
+    <div data-type="turk" data-offset="5" class="noteDiv">&nbsp;5/22 Krodhā E&#9837;</div>
+    <div data-type="turk" data-offset="6" class="noteDiv">&nbsp;6/22 Vajrikā E&#9837;</div>
+    <div data-type="turk" data-offset="7" class="noteDiv">&nbsp;7/22 Prasāriṇī E</div>
+    <div data-type="turk" data-offset="8" class="noteDiv">&nbsp;8/22 Prīti E</div>
+    <div data-type="turk" data-offset="9" class="noteDiv">&nbsp;9/22 Mārjanī F</div>
+    <div data-type="turk" data-offset="10" class="noteDiv">10/22 Kṣhiti F</div>
+    <div data-type="turk" data-offset="11" class="noteDiv">11/22 Raktā F&#9839;</div>
+    <div data-type="turk" data-offset="12" class="noteDiv">12/22 Sandīpanī F&#9839;</div>
+    <div data-type="turk" data-offset="13" class="noteDiv">13/22 Ālāpinī G</div>
+    <div data-type="turk" data-offset="14" class="noteDiv">14/22 Madantī A&#9837;</div>
+    <div data-type="turk" data-offset="15" class="noteDiv">15/22 Rohiṇī A&#9837;</div>
+    <div data-type="turk" data-offset="16" class="noteDiv">16/22 Ramyā A</div>
+    <div data-type="turk" data-offset="17" class="noteDiv">17/22 Ugrā A</div>
+    <div data-type="turk" data-offset="18" class="noteDiv">18/22 Kṣobhinī B&#9837;</div>
+    <div data-type="turk" data-offset="19" class="noteDiv">19/22 Tīvrā B&#9837;</div>
+    <div data-type="turk" data-offset="20" class="noteDiv">20/22 Kumudvatī B</div>
+    <div data-type="turk" data-offset="21" class="noteDiv">21/22 Mandā B</div>
+    <div data-type="turk" data-offset="22" class="noteDiv">22/22 Chandovatī C</div>
+</div>
+
+<div id="PtolemyScale" class="scale">
+    Ptolemy 19-EDO<br>
+    5-limit just intonation<br>
+    C=<input id="freq_Ptolemy" type="number" min="1" max="22000" value="261.6256" /><br />
+
+    <div data-type="Ptolemy" data-offset="0" class="noteDiv refNote">&nbsp;0/19 C3 do</div>
+    <div data-type="Ptolemy" data-offset="1" class="halfDiv">&nbsp;1/19 C&#9839;</div><div data-type="Ptolemy" data-offset="2" class="halfDiv">&nbsp;2/19 D&#9837;</div>
+    <div data-type="Ptolemy" data-offset="3" class="noteDiv">&nbsp;3/19 D ré</div>
+    <div data-type="Ptolemy" data-offset="4" class="halfDiv">&nbsp;4/19 D&#9839;</div><div data-type="Ptolemy" data-offset="5" class="halfDiv">&nbsp;5/19 E&#9837;</div>
+    <div data-type="Ptolemy" data-offset="6" class="noteDiv">&nbsp;6/19 E mi</div>
+    <div data-type="Ptolemy" data-offset="7" class="noteDiv">&nbsp;7/19 E&#9839;F&#9837;</div>
+    <div data-type="Ptolemy" data-offset="8" class="noteDiv">&nbsp;8/19 F fa</div>
+    <div data-type="Ptolemy" data-offset="9" class="halfDiv">&nbsp;9/19 F&#9839;</div><div data-type="Ptolemy" data-offset="10" class="halfDiv">10/19 G&#9837;</div>
+    <div data-type="Ptolemy" data-offset="11" class="noteDiv">11/19 G sol</div>
+    <div data-type="Ptolemy" data-offset="12" class="halfDiv">12/19 G&#9839;</div><div data-type="Ptolemy" data-offset="13" class="halfDiv">&nbsp;13/19 A&#9837;</div>
+    <div data-type="Ptolemy" data-offset="14" class="noteDiv">14/19 A la</div>
+    <div data-type="Ptolemy" data-offset="15" class="halfDiv">15/19 A&#9839;</div><div data-type="Ptolemy" data-offset="16" class="halfDiv">16/19 B&#9837;</div>
+    <div data-type="Ptolemy" data-offset="17" class="noteDiv">17/19 B si</div>
+    <div data-type="Ptolemy" data-offset="18" class="noteDiv">18/19 B&#9839;C&#9837;</div>
+    <div data-type="Ptolemy" data-offset="19" class="noteDiv">19/19 C4 do</div>
+</div>
+
+<div id="pentScale" class="scale">
+    Pentatonic<br>
+    <select id="pentSelect">
+        <option value="0">Major</option>
+        <option value="1">Egyptian</option>
+        <option value="2">Blues minor</option>
+        <option value="3">Blues major</option>
+        <option value="4">Minor</option>
+    </select> <br>
+    A=<input id="freq_pent" type="number" min="1" max="22000" value="440" /><br />
+    <div id="pentDiv">
+
+    </div>
+</div>
+
+<div id="customScale" class="scale">
+    Doiron Tuning<br>
+    <input id="customInput" type="number" min="2" value="12" /> <br>
+    0/12=<input id="freq_custom" type="number" min="1" max="22000" value="261.6256" /><br />
+    <div id="customDiv">
+
+    </div>
+</div>
+
+<div id="footer">Emmanuel Charette Jul-2021</div>
+</body>
+
+</html>
